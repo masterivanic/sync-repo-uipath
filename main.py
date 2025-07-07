@@ -1,5 +1,3 @@
-# UiPath manager versioning cli application
-
 """
  Allow user to push prod or dev version and publish it
  to stay up-to-date
@@ -29,8 +27,6 @@ def main():
     subparsers = cli.add_subparsers(dest='command', required=True)
     subparsers.add_parser('init', help='Initialize a git repository')
     subparsers.add_parser('deploy', help='Commit and push to orchestor')
-
-    # cli.add_argument("--dev", type=str, help="push on given develop branch")
 
     args = cli.parse_args()
     if args.command == "deploy":

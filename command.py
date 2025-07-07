@@ -46,7 +46,7 @@ class RobotCommand:
                 else:
                     if is_valid_url(origin_url):
                         subprocess.run(['git', 'remote', 'add', 'origin', origin_url], check=True)
-                        print("Initialized empty Git repository and remote origin add successfully... 🚀")
+                        print("Initialized Git repository and remote origin add successfully... 🚀")
                     else:
                         print("Origin url entered is not a valid url")
             except subprocess.CalledProcessError as e:
