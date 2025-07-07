@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Union
 import os
 import sys
+import requests
+import os
 
 """ 
     robot init (initialize git repository)
@@ -21,6 +23,7 @@ import sys
 """
      
 class RobotCommand:
+
     def __init__(self):
         self.uipath_commandline = get_uipath_command_exec()
         self.current_directory = Path.cwd()
@@ -29,6 +32,28 @@ class RobotCommand:
             raise GitNotFoundExeception
         if self.uipath_commandline is None:
             raise UiPathNotFoundExeception
+
+    def login(self):
+        payload = {
+            "tenancyName": os.environ.get("TENANCYNAME"),
+            "usernameOrEmailAddress": os.environ.get("USERNAMEOREMAILADDRESS"),
+            "password": os.environ.get("PASSWORD")
+        }
+        try:
+            response = requests.post(
+                os.environ.get("AUTH_URL"), 
+                json=payload, 
+                headers={'Content-Type': 'application/json'}, 
+                timeout=1,
+                verify=False
+            )
+            result = response.json()
+        except requests.exceptions.RequestException as e:
+            return None
+        return result.get('result', None)
+
+    def get_package_id(self, token:str):
+        pass
 
 
     def init_repository(self):
@@ -98,7 +123,6 @@ class RobotCommand:
         return returncode
         
 
-        
     def deploy(self, target="dev", commit_message=None) -> str:
         if self._is_git_project():
             raise Exception("git project is not initialized")
@@ -113,3 +137,7 @@ class RobotCommand:
         return "Error occur while deploying"
 
         
+
+
+if __name__ == '__main__':
+    print(RobotCommand().login())
