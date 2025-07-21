@@ -7,10 +7,10 @@ from utils import is_valid_url
 from exception import GitNotFoundExeception
 from exception import UiPathNotFoundExeception
 from pathlib import Path
-from typing import Union
+from typing import Union, Any
+import json
 import os
 import sys
-import requests
 import os
 
 """ 
@@ -33,27 +33,22 @@ class RobotCommand:
         if self.uipath_commandline is None:
             raise UiPathNotFoundExeception
 
-    def login(self):
-        payload = {
-            "tenancyName": os.environ.get("TENANCYNAME"),
-            "usernameOrEmailAddress": os.environ.get("USERNAMEOREMAILADDRESS"),
-            "password": os.environ.get("PASSWORD")
-        }
-        try:
-            response = requests.post(
-                os.environ.get("AUTH_URL"), 
-                json=payload, 
-                headers={'Content-Type': 'application/json'}, 
-                timeout=1,
-                verify=False
-            )
-            result = response.json()
-        except requests.exceptions.RequestException as e:
-            return None
-        return result.get('result', None)
-
-    def get_package_id(self, token:str):
+    
+    def get_process_id_from_orchestrator(self, token:str):
         pass
+
+    
+    def get_project_info(self) -> dict[str, Any]:
+        json_file_path = self.get_project_json_path()
+        with open(file=json_file_path) as file:
+            data = json.load(file)
+            return dict(
+                name=data["name"], 
+                id=data["projectId"], 
+                version=data["projectVersion"], 
+                target=data["targetFramework"]
+            )
+        return dict()
 
 
     def init_repository(self):
@@ -94,7 +89,7 @@ class RobotCommand:
         return None
 
         
-    def push_and_commit(self, target_branch:str="dev", commit_message:str=None):
+    def push_and_commit(self, target_branch:str="dev", commit_message:str=None) -> Union[int, None]:
         returncode = 0
         commit = "git commit -m " + commit_message
         push = f"git push remote {target_branch} origin/{target_branch}"
@@ -104,7 +99,7 @@ class RobotCommand:
             returncode = proc.poll()
         return returncode
     
-    def push_to_orchestrator(self, notes:str=None, mode="orchestrator", local_path:str=None) -> int:
+    def push_to_orchestrator(self, notes:str=None, mode="orchestrator", local_path:str=None) -> Union[int, None]:
         """
         refer to https://docs.uipath.com/fr/studio/standalone/2023.4/user-guide/about-publishing-automation-projects
         """
@@ -140,4 +135,5 @@ class RobotCommand:
 
 
 if __name__ == '__main__':
-    print(RobotCommand().login())
+    #print(RobotCommand().get_package_id())
+    pass
