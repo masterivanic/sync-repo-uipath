@@ -8,6 +8,7 @@ from exception import GitNotFoundExeception
 from exception import UiPathNotFoundExeception
 from pathlib import Path
 from typing import Union, Any
+from subprocess import run, CalledProcessError
 import json
 import os
 import sys
@@ -24,20 +25,19 @@ import os
      
 class RobotCommand:
 
-    def __init__(self):
+    def __init__(self, current_directory=None):
         self.uipath_commandline = get_uipath_command_exec()
-        self.current_directory = Path.cwd()
+        print(self.uipath_commandline)
+        self.current_directory = current_directory
 
         if check_installation_v2() is False:
             raise GitNotFoundExeception
         if self.uipath_commandline is None:
             raise UiPathNotFoundExeception
-
     
     def get_process_id_from_orchestrator(self, token:str):
         pass
 
-    
     def get_project_info(self) -> dict[str, Any]:
         json_file_path = self.get_project_json_path()
         with open(file=json_file_path) as file:
@@ -55,10 +55,11 @@ class RobotCommand:
         is_git = self._is_git_project()
         if is_git is False:
             try:
-                subprocess.run(['git', 'init'], check=True, capture_output=True)
-                subprocess.run(['git', 'add', '.'], check=True, capture_output=True)
-                subprocess.run(['git', 'commit', '-m', 'init'], check=True)
-                subprocess.run(['git', 'branch', '-M', 'main'], check=True)
+                subprocess.run(['git', 'init'], check=True, capture_output=True, cwd=self.current_directory)
+                subprocess.run(['git', 'add', '.'], check=True, capture_output=True, cwd=self.current_directory)
+                subprocess.run(['git', 'commit', '-m', 'init'], check=True, cwd=self.current_directory)
+                subprocess.run(['git', 'branch', '-M', 'main'], check=True, cwd=self.current_directory)
+                
                 print("One step remaining 😊 to init your project", end="\n")
                 origin_url = input("Enter origin url: ")
                 if origin_url is None:
@@ -66,6 +67,7 @@ class RobotCommand:
                 else:
                     if is_valid_url(origin_url):
                         subprocess.run(['git', 'remote', 'add', 'origin', origin_url], check=True)
+                        subprocess.run(['git', 'push', '--set-upstream', 'main'], check=True, cwd=self.current_directory)
                         print("Initialized Git repository and remote origin add successfully... 🚀")
                     else:
                         print("Origin url entered is not a valid url")
@@ -88,51 +90,63 @@ class RobotCommand:
             return self.current_directory / "project.json"
         return None
 
-        
-    def push_and_commit(self, target_branch:str="dev", commit_message:str=None) -> Union[int, None]:
-        returncode = 0
-        commit = "git commit -m " + commit_message
-        push = f"git push remote {target_branch} origin/{target_branch}"
-        argument = shlex.split(s=f"{commit} ';' {push}")
-        with subprocess.Popen(args=argument, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-            output, _ = proc.communicate()
-            returncode = proc.poll()
-        return returncode
+    
+    def push_and_commit(self, commit_message:str=None) -> int:
+        try:
+            run(['git', 'add', '.'], check=True, capture_output=True, cwd=self.current_directory)
+            run(['git', 'commit', '-m', commit_message], check=True, capture_output=True, cwd=self.current_directory)
+            run(['git', 'push'], check=True, capture_output=True, cwd=self.current_directory)
+            return 0 
+        except CalledProcessError as e:
+            print(f"Git command failed: {e}\n{e.stderr.decode() if e.stderr else ''}")
+            return e.returncode
     
     def push_to_orchestrator(self, notes:str=None, mode="orchestrator", local_path:str=None) -> Union[int, None]:
         """
-        refer to https://docs.uipath.com/fr/studio/standalone/2023.4/user-guide/about-publishing-automation-projects
+        see docs
+        https://docs.uipath.com/fr/studio/standalone/2023.4/user-guide/about-publishing-automation-projects
         """
         project_path = self.get_project_json_path()
         if project_path is None:
             raise Exception("project not found")
         
-        command = f"{self.uipath_commandline} publish --project-path {project_path} OrchestratorTenant --notes {notes}"
-        if mode != "orchestrator":
-            command = "None"
+        #command = f"{self.uipath_commandline} publish --project-path {project_path} OrchestratorTenant --notes {notes}"
+        cmd = [self.uipath_commandline, "publish", "--project-path", str(project_path)]
+        if mode == "orchestrator":
+            cmd.extend(["--target", "OrchestratorTenant"])
+        if notes:
+            cmd.extend(["--notes", notes])
 
-        argument = shlex.split(s=command)
-        with subprocess.Popen(args=argument, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-            output, _ = proc.communicate()
-            returncode = proc.poll()
-        return returncode
+        try:
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=self.current_directory,
+                check=True,
+                text=True,
+            )
+            print(result.stdout)
+            return 0
+        except subprocess.CalledProcessError as e:
+            print("UiPath publish failed:", e.stderr or e)
+            return e.returncode
         
 
-    def deploy(self, target="dev", commit_message=None) -> str:
-        if self._is_git_project():
+    def deploy(self, target="dev", commit_message=None) -> None:
+        returncode = 1
+        if not self._is_git_project():
             raise Exception("git project is not initialized")
         
-        commit = self.push_and_commit(target_branch=target, commit_message=commit_message)
-        push = None
-        if commit is not None:
-            self.push_to_orchestrator(notes=commit_message)
+        commit = self.push_and_commit(commit_message=commit_message)
+        if commit == 0:
+            returncode = self.push_to_orchestrator(notes=commit_message)
          
-        if push is not None:
-            return "process successfully deploy🚀"
-        return "Error occur while deploying"
-
-        
-
+        if returncode == 0:
+            print("process successfully deploy🚀")
+        else:
+            Exception("Error occur while deploying")
+       
 
 if __name__ == '__main__':
     #print(RobotCommand().get_package_id())

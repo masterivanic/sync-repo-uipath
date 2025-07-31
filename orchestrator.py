@@ -2,6 +2,7 @@ import os
 import requests
 import os
 from utils import TokenManager
+from typing import Union
 
 FOLDER_API_URL = "https://dceyy2lx.adam.adroot.edf.fr/odata/Folders"
 
@@ -27,7 +28,7 @@ def login() -> None:
         raise e.strerror
 
 
-def get_folder():
+def get_folder(folder_name:str = "DEVELOPPEMENT") -> Union[dict, None]:
     jwt_token = token_manager.get_token()
     if jwt_token is None:
         login()
@@ -37,12 +38,14 @@ def get_folder():
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {jwt_token}'
         })
-        result = result.json()
+        result = result.json().get('value', []) # list of dict
+        result = list(filter(lambda d:d['FullyQualifiedName'] == f'SIMA/{folder_name}', result))
+        if len(result) == 1:
+            return result[0]
     except requests.exceptions.RequestException as exc:
         return None
-    return result
+    return {}
     
     
-
 if __name__ == '__main__':
     print(get_folder())

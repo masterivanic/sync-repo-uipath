@@ -14,24 +14,47 @@
 
 import argparse
 from command import RobotCommand
+from pathlib import Path
 
 def main():
     robot = RobotCommand()
     cli = argparse.ArgumentParser(
         prog="robot", 
         description="Sync git and orchestrator to safe development and production 🤖",
-        epilog="Robot command run all uipath",
+        epilog="""
+            Examples:
+                robot deploy --dev -m "Dev commit"
+                robot deploy --prod -m "Prod deploy"
+                robot deploy -m "Default to dev"
+                robot deploy --path /path/to/your/project -m "Run in another folder"
+                robot init
+                robot analyze
+                robot repair
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=True,
         exit_on_error=True
     )
     subparsers = cli.add_subparsers(dest='command', required=True)
-    subparsers.add_parser('init', help='Initialize a git repository')
-    subparsers.add_parser('deploy', help='Commit and push to orchestor')
+    init_parser = subparsers.add_parser('init', help='Initialize a git repository')
+    init_parser.add_argument('-p', '--path', type=str, help='Project directory (default: current)', default=None)
+   
+    deploy_parser = subparsers.add_parser('deploy', help='Commit and push to orchestrator')
+    group = deploy_parser.add_mutually_exclusive_group()
+    group.add_argument('--dev', action='store_true', help='Deploy and commit on dev environnment')
+    group.add_argument('--prod', action='store_true', help='Deploy and commit on prod environnment')
+    deploy_parser.add_argument('-m', '--message', type=str, help='Commit message', required=True)
+    deploy_parser.add_argument('-p', '--path', type=str, help='Project directory (default: current)', default=None)
 
     args = cli.parse_args()
+    current_directory = Path(args.path) if args.path else Path.cwd()
     if args.command == "deploy":
-        robot.deploy()
-    if args.command == "init":
+        target = "dev" if args.dev else "main" if args.prod else "dev"
+        commit_message = args.message
+        robot = RobotCommand(current_directory=current_directory)
+        robot.deploy(target=target, commit_message=commit_message)
+    elif args.command == "init":
+        robot = RobotCommand(current_directory=current_directory)
         robot.init_repository()
 
 
